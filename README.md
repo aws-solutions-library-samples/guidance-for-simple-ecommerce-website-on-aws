@@ -7,7 +7,7 @@ The sample code; software libraries; command line tools; proofs of concept; temp
 
 ## Prerequisites
 
-In order to deploy Simple E-commerce Website on AWS, you must first create an AWS account and have access to AWS CloudFormation. Additionally, the solution uses secrets stored in AWS Secrets Manager. To create a secret in AWS Secrets Manager, refer the deployment guide or learn more in the [AWS Secrets Manager documentation.](https://docs.aws.amazon.com/secretsmanager/latest/userguide/intro.html)
+In order to deploy Simple E-commerce Website on AWS, you must first create an AWS account and have access to AWS CloudFormation. Additionally, the solution uses secrets stored in AWS Secrets Manager. To create a secret in AWS Secrets Manager, learn more in the [AWS Secrets Manager documentation.](https://docs.aws.amazon.com/secretsmanager/latest/userguide/intro.html)
 
 ## Architecture
 
@@ -19,12 +19,3 @@ In order to deploy Simple E-commerce Website on AWS, you must first create an AW
 
 
 ![reuse](./assets/Architecture.png)
-
-## Deployment
-
-[Deployment Guide](https://aws.amazon.com/solutions/TBD) (Link TBD)
-
-### Deployment Video
-
-[Deployment Video](Link TBD)
-
