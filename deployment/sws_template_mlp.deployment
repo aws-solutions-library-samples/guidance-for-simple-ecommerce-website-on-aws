@@ -1,0 +1,223 @@
+{
+    "AWSTemplateFormatVersion": "2010-09-09",
+    "Description": "(SO9097) Launch a Wordpress-Env-to-Lightsail. Version 0.0.1",
+    "Parameters": {
+        "WordpressAdminCredentials": {
+            "Type": "String",
+            "Default": "WordpressAdminCredentials",
+            "Description": "The name of the AWS Secrets Manager secret stored in the same region and account.",
+            "MinLength": 1
+        },
+        "AdminEmail": {
+            "Type": "String",
+            "Default": "admin@yourdomain.com",
+            "AllowedPattern": "[^@]+@[^@]+\\.[^@]+",
+            "Description": "Email address of the administrator"
+        },
+        "WebsiteName": {
+            "Type": "String",
+            "AllowedPattern": "[a-zA-Z0-9]*",
+            "ConstraintDescription": "Must contain only alphanumeric characters.",
+            "Description": "Name for your Wordpress Instance.",
+            "MaxLength": 16
+        },
+        "Region": {
+            "Type": "String",
+            "Default": "us-east-1",
+            "AllowedValues": [
+                "ap-northeast-1",
+                "ap-northeast-2",
+                "ap-south-1",
+                "ap-southeast-1",
+                "ap-southeast-2",
+                "ca-central-1",
+                "eu-central-1",
+                "eu-north-1",
+                "eu-west-1 ",
+                "eu-west-2 ",
+                "eu-west-3",
+                "us-east-1",
+                "us-east-2 ",
+                "us-west-1",
+                "us-west-2"
+            ],
+            "Description": "Some Amazon Lightsail resources are only available in certain regions. Select a region from the below list."
+        }
+    },
+    "Resources": {
+        "AmazonLightsailInstance": {
+            "Type": "AWS::Lightsail::Instance",
+            "Properties": {
+                "BlueprintId": "wordpress",
+                "BundleId": "nano_2_0",
+                "InstanceName": {
+                    "Ref": "WebsiteName"
+                },
+                "AddOns": [
+                    {
+                        "AddOnType": "AutoSnapshot",
+                        "Status": "Disabled"
+                    }
+                ],
+                "AvailabilityZone": {
+                    "Fn::Select": [
+                        0,
+                        {
+                            "Fn::GetAZs": {
+                                "Ref": "Region"
+                            }
+                        }
+                    ]
+                },
+                "UserData": {
+                    "Fn::Join": [
+                        "",
+                        [
+                            "#!/bin/bash \n          # Create the admin user \n          /opt/bitnami/wp-cli/bin/wp user create {{resolve:secretsmanager:arn:",
+                            {
+                                "Ref": "AWS::Partition"
+                            },
+                            ":secretsmanager:",
+                            {
+                                "Ref": "Region"
+                            },
+                            ":",
+                            {
+                                "Ref": "AWS::AccountId"
+                            },
+                            ":secret:",
+                            {
+                                "Ref": "WordpressAdminCredentials"
+                            },
+                            ":SecretString:AdminUsername::}} ",
+                            {
+                                "Ref": "AdminEmail"
+                            },
+                            " --user_pass={{resolve:secretsmanager:arn:",
+                            {
+                                "Ref": "AWS::Partition"
+                            },
+                            ":secretsmanager:",
+                            {
+                                "Ref": "Region"
+                            },
+                            ":",
+                            {
+                                "Ref": "AWS::AccountId"
+                            },
+                            ":secret:",
+                            {
+                                "Ref": "WordpressAdminCredentials"
+                            },
+                            ":SecretString:AdminPassword::}} --role=administrator      # install the elementor plugin\n          /opt/bitnami/wp-cli/bin/wp plugin install elementor --activate\n     echo \"##### INSTALL WP STATISTICS #####\"\n    /opt/bitnami/wp-cli/bin/wp plugin install wp-statistics --activate\n          echo \"##### INSTALL WOOCOMMERCE\"\n          /opt/bitnami/wp-cli/bin/wp plugin install woocommerce --activate\n          echo \"##### INSTALL WP Mail SMTP\"\n          /opt/bitnami/wp-cli/bin/wp plugin install wp-mail-smtp --activate\n          echo \"##### CONFIGURE Distribution Settings\"\n          chmod 664 /opt/bitnami/wordpress/wp-config.php\n          sudo /opt/bitnami/wp-cli/bin/wp config delete WP_SITEURL\n          sudo /opt/bitnami/wp-cli/bin/wp config delete WP_HOME \n          sed -i 1d /opt/bitnami/wordpress/wp-config.php\n          touch /tmp/newfile.txt\n          echo \"<?php\ndefine('WP_SITEURL', 'https://' . \\$_SERVER['HTTP_HOST'] . '/');\ndefine('WP_HOME', 'https://' . \\$_SERVER['HTTP_HOST'] . '/');\nif (isset(\\$_SERVER['HTTP_CLOUDFRONT_FORWARDED_PROTO'])\n&& \\$_SERVER['HTTP_CLOUDFRONT_FORWARDED_PROTO'] === 'https') {\n\\$_SERVER['HTTPS'] = 'on';\n}\" > /tmp/newfile.txt\n          cat /opt/bitnami/wordpress/wp-config.php >> /tmp/newfile.txt\n          cp /tmp/newfile.txt /opt/bitnami/wordpress/wp-config.php\n         sudo /opt/bitnami/ctlscript.sh restart apache \n"
+                        ]
+                    ]
+                }
+            }
+        },
+        "AmazonLightsailStaticIp": {
+            "Type": "AWS::Lightsail::StaticIp",
+            "Properties": {
+                "StaticIpName": {
+                    "Fn::Join": [
+                        "",
+                        [
+                            {
+                                "Ref": "WebsiteName"
+                            },
+                            "_staticIp"
+                        ]
+                    ]
+                },
+                "AttachedTo": {
+                    "Ref": "AmazonLightsailInstance"
+                }
+            }
+        },
+        "AmazonLightsailDistribution": {
+            "Type": "AWS::Lightsail::Distribution",
+            "Properties": {
+                "BundleId": "small_1_0",
+                "DefaultCacheBehavior": {
+                    "Behavior": "dont-cache"
+                },
+                "DistributionName": {
+                    "Fn::Join": [
+                        "",
+                        [
+                            {
+                                "Ref": "WebsiteName"
+                            },
+                            "_distribution"
+                        ]
+                    ]
+                },
+                "Origin": {
+                    "Name": {
+                        "Ref": "AmazonLightsailInstance"
+                    },
+                    "ProtocolPolicy": "http-only",
+                    "RegionName": {
+                        "Ref": "Region"
+                    }
+                },
+                "CacheBehaviors": [
+                    {
+                        "Behavior": "cache",
+                        "Path": "wp-includes/*"
+                    },
+                    {
+                        "Behavior": "cache",
+                        "Path": "wp-content/*"
+                    }
+                ],
+                "CacheBehaviorSettings": {
+                    "AllowedHTTPMethods": "GET,HEAD,OPTIONS",
+                    "DefaultTTL": 86400,
+                    "ForwardedCookies": {
+                        "Option": "none"
+                    },
+                    "ForwardedHeaders": {
+                        "HeadersAllowList": [
+                            "host"
+                        ],
+                        "Option": "allow-list"
+                    },
+                    "ForwardedQueryStrings": {
+                        "Option": true
+                    }
+                }
+            },
+            "DependsOn": [
+                "AmazonLightsailStaticIp",
+                "AmazonLightsailInstance"
+            ]
+        }
+    },
+    "Outputs": {
+        "OutStaticIp": {
+            "Description": "Static IP of Lightsail instance. Configure an A record on your DNS Zone to point to this IP address.",
+            "Value": {
+                "Fn::GetAtt": [
+                    "AmazonLightsailStaticIp",
+                    "IpAddress"
+                ]
+            }
+        },
+        "DistributionDetails": {
+            "Description": "Visit the above link to view the URL and cache details of your Lightsail Distribution.",
+            "Value": {
+                "Fn::Join": [
+                    "",
+                    [
+                        "https://lightsail.aws.amazon.com/ls/webapp/distributions/",
+                        {
+                            "Ref": "WebsiteName"
+                        },
+                        "_distribution/details"
+                    ]
+                ]
+            }
+        }
+    }
+}
